@@ -1,0 +1,1 @@
+[general]\n# Set the theme to dark\ndarkMode = true\n\n[server]\n# Set the configuration for mobile optimization\nheadless = true\n
