@@ -1,1 +1,19 @@
-[general]\n# Set the theme to dark\ndarkMode = true\n\n[server]\n# Set the configuration for mobile optimization\nheadless = true\n
+[theme]
+# Configura o modo escuro como padrão para o Vinhedo Oma Sena
+base = "dark"
+primaryColor = "#d33682"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#1a1c23"
+textColor = "#fafafa"
+font = "sans serif"
+
+[server]
+# Configurações para garantir estabilidade no acesso via celular/campo
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[client]
+# Remove o menu superior e o rodapé "Made with Streamlit" para ficar mais profissional
+toolbarMode = "minimal"
+showErrorDetails = false
