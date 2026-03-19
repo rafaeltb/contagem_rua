@@ -1,54 +1,69 @@
 import streamlit as st
 from datetime import date
+import pandas as pd
+from sqlalchemy import create_url
+from sqlalchemy import create_engine
 
 # --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="Oma Sena Campo", layout="centered")
+st.set_page_config(page_title="Oma Sena Campo", layout="centered", page_icon="🍇")
 
-# Dados das ruas (Simplificado para o exemplo)
-mapa_plantas = {
-    "Rua 01 - Lado A": 117, "Rua 02 - Lado A": 117, "Rua 20 - Lado A": 158,
-    "Rua 20 - Lado B": 0, "Rua 21 - Lado A": 159, "Rua 21 - Lado B": 128
-    # O sistema carregará o restante do seu dados_plantas automaticamente
-}
+# DADOS DAS RUAS (Dicionário completo processado)
+dados_plantas = [(53, 101, 0), (52, 101, 0), (51, 100, 0), (50, 104, 0), (49, 103, 0), (48, 105, 0), (47, 106, 0), (46, 109, 0), (45, 111, 0), (44, 113, 0), (43, 109, 0), (42, 114, 0), (41, 115, 0), (40, 117, 0), (39, 117, 154), (38, 121, 154), (37, 121, 154), (36, 121, 154), (35, 123, 154), (34, 123, 154), (33, 123, 135), (32, 127, 136), (31, 127, 137), (30, 128, 138), (29, 131, 139), (28, 132, 140), (27, 133, 141), (26, 150, 142), (25, 152, 139), (24, 156, 136), (23, 157, 134), (22, 156, 121), (21, 159, 128), (20, 158, 0), (19, 148, 0), (18, 149, 0), (17, 148, 0), (16, 146, 0), (15, 141, 0), (14, 141, 0), (13, 138, 0), (12, 134, 0), (11, 132, 0), (10, 129, 0), (9, 127, 0), (8, 122, 0), (7, 120, 0), (6, 119, 0), (5, 119, 0), (4, 118, 0), (3, 117, 0), (2, 117, 0), (1, 117, 0)]
+
+mapa_plantas = {}
+for r, a, b in dados_plantas:
+    mapa_plantas[f"Rua {r:02d} - Lado A"] = a
+    if b > 0: mapa_plantas[f"Rua {r:02d} - Lado B"] = b
+
+# --- CONEXÃO COM BANCO DE DADOS ---
+# No Streamlit Cloud, você configurará o segredo na aba "Secrets"
+def salvar_no_sql(dados):
+    try:
+        conn = st.connection("postgresql", type="sql")
+        with conn.session as s:
+            s.execute(
+                "INSERT INTO producao_vinhedo (data, etapa, equipe, ruas, total_plantas, plantas_por_pessoa, horas) "
+                "VALUES (:data, :etapa, :equipe, :ruas, :total, :indiv, :horas)",
+                params=dados
+            )
+            s.commit()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar no banco: {e}")
+        return False
 
 st.title("🍇 Registro de Campo")
 st.subheader("Oma Sena - Gestão Ágil")
 
-# --- FORMULÁRIO DE ENTRADA ---
 with st.form("registro_campo"):
     data_trab = st.date_input("Data:", date.today())
-    
-    etapa = st.selectbox("O que foi feito?", [
-        "1 - Pré-poda", "2 - Limpeza Ramos", "3 - Poda", 
-        "4 - Alceamento", "5 - Dormex", "6 - Limpeza Final"
-    ])
-    
-    equipe = st.multiselect("Quem trabalhou?", 
-                           ["Bastiao", "Andre", "Kenia", "Higor", "Joao", "Jose"])
-    
-    ruas = st.multiselect("Quais ruas?", options=list(mapa_plantas.keys()))
-    
-    horas = st.number_input("Horas gastas:", min_value=1.0, max_value=12.0, value=8.0)
-    
+    etapa = st.selectbox("O que foi feito?", ["1 - Pré-poda", "2 - Limpeza Ramos", "3 - Poda", "4 - Alceamento", "5 - Dormex", "6 - Limpeza Final"])
+    equipe = st.multiselect("Quem trabalhou?", ["Bastiao", "Andre", "Kenia", "Higor", "Joao", "Jose"])
+    ruas_sel = st.multiselect("Quais ruas?", options=sorted(list(mapa_plantas.keys())))
+    horas = st.number_input("Horas gastas:", min_value=1.0, value=8.0)
     enviar = st.form_submit_button("Registrar Produção")
 
-# --- LÓGICA DE CÁLCULO ---
 if enviar:
-    if not equipe or not ruas:
-        st.error("Por favor, selecione a equipe e as ruas.")
+    if not equipe or not ruas_sel:
+        st.error("Selecione equipe e ruas!")
     else:
-        total_plantas = sum(mapa_plantas[r] for r in ruas)
-        qtd_pessoas = len(equipe)
-        etapa_num = int(etapa[0])
+        total = sum(mapa_plantas[r] for r in ruas_sel)
+        qtd = len(equipe)
+        plantas_indiv = total / qtd if int(etapa[0]) <= 4 else total
         
-        # Sua regra de negócio: 1-4 divide, 5-6 repete
-        plantas_indiv = total_plantas / qtd_pessoas if etapa_num <= 4 else total_plantas
+        # Preparar dados para o SQL
+        dados_salvar = {
+            "data": data_trab,
+            "etapa": etapa,
+            "equipe": ", ".join(equipe),
+            "ruas": ", ".join(ruas_sel),
+            "total": total,
+            "indiv": plantas_indiv,
+            "horas": horas
+        }
         
-        st.success(f"✅ Registrado com sucesso!")
-        
-        # Exibição de resultados simples para o trabalhador
-        col1, col2 = st.columns(2)
-        col1.metric("Total Plantas", int(total_plantas))
-        col2.metric("Por Pessoa", f"{plantas_indiv:.1f}")
-        
-        st.info(f"Dados enviados para o banco de dados da Oma Sena.")
+        if salvar_no_sql(dados_salvar):
+            st.success(f"✅ Registrado no SQL e processado!")
+            c1, c2 = st.columns(2)
+            c1.metric("Total Plantas", int(total))
+            c2.metric("Por Pessoa", f"{plantas_indiv:.1f}")
