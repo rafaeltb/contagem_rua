@@ -5,26 +5,64 @@ from sqlalchemy import text
 
 def salvar_no_sql(dados):
     try:
-        # Conexão usando o conector oficial do Streamlit
+        # 1. Conecta ao banco (certifique-se de que o segredo está como [connections.postgresql])
         conn = st.connection("postgresql", type="sql")
         
-        # O bloco 'with conn.session' gerencia a transação
+        # 2. Usa o context manager da sessão de forma explícita
         with conn.session as s:
             query = text("""
                 INSERT INTO producao_vinhedo (data, etapa, equipe, ruas, total_plantas, plantas_por_pessoa, horas) 
                 VALUES (:data, :etapa, :equipe, :ruas, :total, :indiv, :horas)
             """)
-            # Executamos passando o dicionário de dados
-            s.execute(query, dados)
-            # No Streamlit connection, o commit é automático ao sair do bloco 'with'
-            # mas podemos forçar para garantir em algumas versões:
+            
+            # Executa a query
+            s.execute(query, {
+                "data": dados["data"],
+                "etapa": dados["etapa"],
+                "equipe": dados["equipe"],
+                "ruas": dados["ruas"],
+                "total": dados["total"],
+                "indiv": dados["indiv"],
+                "horas": dados["horas"]
+            })
+            
+            # 3. Força o commit e fecha a transação
             s.commit()
+            
         return True
     except Exception as e:
-        # Exibe o erro detalhado para diagnóstico
-        st.error(f"Erro detalhado: {e}")
+        st.error(f"Erro ao salvar: {str(e)}")
         return False
 
+# --- No bloco 'if enviar:' ---
+if enviar:
+    if not equipe or not ruas_sel:
+        st.error("Selecione equipe e ruas!")
+    else:
+        # ... cálculos de total e plantas_indiv ...
+        
+        dados_salvar = {
+            "data": data_trab,
+            "etapa": etapa,
+            "equipe": ", ".join(equipe),
+            "ruas": ", ".join(ruas_sel),
+            "total": total,
+            "indiv": plantas_indiv,
+            "horas": horas
+        }
+        
+        # Feedback com tempo limite visual
+        placeholder = st.empty()
+        placeholder.info("⏳ Conectando ao Supabase...")
+        
+        sucesso = salvar_no_sql(dados_salvar)
+        
+        placeholder.empty() # Limpa a mensagem de espera
+        
+        if sucesso:
+            st.success("✅ Gravado com sucesso!")
+            st.balloons()
+        # O erro já será mostrado dentro da função salvar_no_sql se falhar
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Oma Sena Campo", layout="centered", page_icon="🍇")
 
