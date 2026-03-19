@@ -4,6 +4,25 @@ import pandas as pd
 from sqlalchemy import create_url
 from sqlalchemy import create_engine
 
+
+def salvar_no_sql(dados):
+    try:
+        # Forma moderna e segura do Streamlit se conectar ao seu Secret [connections.postgresql]
+        conn = st.connection("postgresql", type="sql")
+        
+        with conn.session as s:
+            # Usamos text() para garantir que o SQL seja interpretado corretamente
+            from sqlalchemy import text
+            query = text("""
+                INSERT INTO producao_vinhedo (data, etapa, equipe, ruas, total_plantas, plantas_por_pessoa, horas) 
+                VALUES (:data, :etapa, :equipe, :ruas, :total, :indiv, :horas)
+            """)
+            s.execute(query, params=dados)
+            s.commit()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar no banco: {e}")
+        return False
 # --- CONFIGURAÇÃO ---
 st.set_page_config(page_title="Oma Sena Campo", layout="centered", page_icon="🍇")
 
@@ -15,22 +34,7 @@ for r, a, b in dados_plantas:
     mapa_plantas[f"Rua {r:02d} - Lado A"] = a
     if b > 0: mapa_plantas[f"Rua {r:02d} - Lado B"] = b
 
-# --- CONEXÃO COM BANCO DE DADOS ---
-# No Streamlit Cloud, você configurará o segredo na aba "Secrets"
-def salvar_no_sql(dados):
-    try:
-        conn = st.connection("postgresql", type="sql")
-        with conn.session as s:
-            s.execute(
-                "INSERT INTO producao_vinhedo (data, etapa, equipe, ruas, total_plantas, plantas_por_pessoa, horas) "
-                "VALUES (:data, :etapa, :equipe, :ruas, :total, :indiv, :horas)",
-                params=dados
-            )
-            s.commit()
-        return True
-    except Exception as e:
-        st.error(f"Erro ao salvar no banco: {e}")
-        return False
+
 
 st.title("🍇 Registro de Campo")
 st.subheader("Oma Sena - Gestão Ágil")
