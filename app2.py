@@ -1,9 +1,9 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
-from sqlalchemy import create_url
-from sqlalchemy import create_engine
 
+#from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 
 def salvar_no_sql(dados):
     try:
