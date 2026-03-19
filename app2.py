@@ -3,19 +3,30 @@ from datetime import date
 from sqlalchemy import text
 
 # 1. Definição da Função (Sempre no topo)
+from sqlalchemy import create_engine
+
 def salvar_no_sql(dados):
     try:
-        conn = st.connection("postgresql", type="sql")
-        with conn.session as s:
+        # Em vez de st.connection direto, vamos configurar o engine para aceitar o Pooler do Supabase
+        url = st.secrets["connections"]["postgresql"]["url"]
+        
+        # O segredo aqui é o 'prepare_threshold=None' dentro do connect_args, não na URL
+        engine = create_engine(
+            url, 
+            connect_args={"options": "-c statement_timeout=30000"}, # 30 segundos de timeout
+            execution_options={"isolation_level": "AUTOCOMMIT"}
+        )
+        
+        with engine.begin() as conn:
             query = text("""
                 INSERT INTO producao_vinhedo (data, etapa, equipe, ruas, total_plantas, plantas_por_pessoa, horas) 
                 VALUES (:data, :etapa, :equipe, :ruas, :total, :indiv, :horas)
             """)
-            s.execute(query, dados)
-            s.commit()
+            conn.execute(query, dados)
+            
         return True
     except Exception as e:
-        st.error(f"Erro no banco: {e}")
+        st.error(f"Erro técnico: {e}")
         return False
 
 # 2. Configurações e Dados
