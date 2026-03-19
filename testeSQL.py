@@ -1,34 +1,36 @@
 import streamlit as st
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
-st.title("🧪 Teste de Escrita: Tabela Simples")
-
-# Tenta ligar usando a porta 6543 definida no seu Secrets
-conn = st.connection("postgresql", type="sql")
-
-# --- PARTE 1: LEITURA ---
-st.subheader("1. Teste de Leitura")
-if st.button("Ler Tabela de Teste"):
+def testar_conexao_robusta():
     try:
-        df = conn.query("SELECT * FROM teste_conexao;", ttl=0)
-        st.write("Dados encontrados:")
-        st.dataframe(df)
+        # Puxa a URL do Secrets
+        url = st.secrets["connections"]["postgresql"]["url"]
+        
+        # Criamos o engine com configurações que evitam o erro de IPv6
+        engine = create_engine(
+            url,
+            connect_args={
+                "connect_timeout": 15,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5
+            },
+            pool_pre_ping=True
+        )
+        
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT 1"))
+            return True, res.fetchone()
     except Exception as e:
-        st.error(f"Erro ao ler: {e}")
+        return False, str(e)
 
-# --- PARTE 2: ESCRITA ---
-st.subheader("2. Teste de Escrita")
-msg = st.text_input("Escreva algo para guardar:", "Teste via Streamlit")
+st.title("🧪 Teste de Conexão Forçada IPv4")
 
-if st.button("Gravar no Banco"):
-    try:
-        with conn.session as s:
-            s.execute(
-                text("INSERT INTO teste_conexao (mensagem) VALUES (:m)"),
-                {"m": msg}
-            )
-            s.commit()
-        st.success("✅ Gravado com sucesso! Clique em 'Ler Tabela' para confirmar.")
-    except Exception as e:
-        st.error(f"Erro ao gravar: {e}")
-        st.info("Se o erro for 'Timeout', confirme se a porta no Secrets é a 6543.")
+if st.button("Tentar Conexão Direta"):
+    sucesso, resultado = testar_conexao_robusta()
+    if sucesso:
+        st.success(f"✅ CONECTADO! Resultado: {resultado}")
+    else:
+        st.error(f"❌ Erro persistente: {resultado}")
+        st.info("Dica: Se aparecer 'IPv6', o Streamlit Cloud está ignorando a rota IPv4.")
